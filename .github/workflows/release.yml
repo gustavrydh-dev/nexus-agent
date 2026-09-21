@@ -47,22 +47,16 @@ jobs:
           <dict>
               <key>CFBundleName</key>
               <string>Nexus</string>
-
               <key>CFBundleDisplayName</key>
               <string>Nexus</string>
-
               <key>CFBundleIdentifier</key>
               <string>com.nexus.agent</string>
-
               <key>CFBundleVersion</key>
               <string>${VERSION}</string>
-
               <key>CFBundleShortVersionString</key>
               <string>${VERSION}</string>
-
               <key>CFBundleExecutable</key>
               <string>Nexus</string>
-
               <key>LSMinimumSystemVersion</key>
               <string>11.0</string>
           </dict>
@@ -81,8 +75,7 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Nexus-macos-arm64.dmg
+          files: Nexus-macos-arm64.dmg
 
 
   macos-intel:
@@ -122,22 +115,16 @@ jobs:
           <dict>
               <key>CFBundleName</key>
               <string>Nexus</string>
-
               <key>CFBundleDisplayName</key>
               <string>Nexus</string>
-
               <key>CFBundleIdentifier</key>
               <string>com.nexus.agent</string>
-
               <key>CFBundleVersion</key>
               <string>${VERSION}</string>
-
               <key>CFBundleShortVersionString</key>
               <string>${VERSION}</string>
-
               <key>CFBundleExecutable</key>
               <string>Nexus</string>
-
               <key>LSMinimumSystemVersion</key>
               <string>10.15</string>
           </dict>
@@ -156,8 +143,7 @@ jobs:
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Nexus-macos-intel.dmg
+          files: Nexus-macos-intel.dmg
 
 
   windows:
@@ -211,14 +197,21 @@ jobs:
           WizardStyle=modern
 
           [Files]
-          Source="dist\Nexus.exe"; DestDir="{app}"; Flags: ignoreversion
+          Source="dist\Nexus.exe"
+          DestDir="{app}"
+          Flags: ignoreversion
 
           [Icons]
-          Name="{group}\Nexus"; Filename="{app}\Nexus.exe"
-          Name="{commondesktop}\Nexus"; Filename="{app}\Nexus.exe"
+          Name="{group}\Nexus"
+          Filename="{app}\Nexus.exe"
+
+          Name="{commondesktop}\Nexus"
+          Filename="{app}\Nexus.exe"
 
           [Run]
-          Filename="{app}\Nexus.exe"; Description="Start Nexus"; Flags=nowait postinstall skipifsilent
+          Filename="{app}\Nexus.exe"
+          Description="Start Nexus"
+          Flags=nowait postinstall skipifsilent
           "@ | Out-File -Encoding utf8 installer\Nexus.iss
 
       - name: Build Windows installer
