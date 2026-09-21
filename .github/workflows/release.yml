@@ -196,7 +196,7 @@ jobs:
           WizardStyle=modern
 
           [Files]
-          Source: "dist\Nexus.exe"; DestDir: "{app}"; Flags: ignoreversion
+          Source: "..\dist\Nexus.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
           Name: "{group}\Nexus"; Filename: "{app}\Nexus.exe"
