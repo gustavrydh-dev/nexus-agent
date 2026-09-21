@@ -179,7 +179,6 @@ jobs:
           #define MyAppName "Nexus"
           #define MyAppVersion "$version"
           #define MyAppPublisher "Nexus"
-          #define MyAppExeName "Nexus.exe"
 
           [Setup]
           AppId={{A5B9E5E2-6B1A-4F9D-B2E2-8A4E1B4D9D10}
@@ -197,21 +196,14 @@ jobs:
           WizardStyle=modern
 
           [Files]
-          Source="dist\Nexus.exe"
-          DestDir="{app}"
-          Flags: ignoreversion
+          Source: "dist\Nexus.exe"; DestDir: "{app}"; Flags: ignoreversion
 
           [Icons]
-          Name="{group}\Nexus"
-          Filename="{app}\Nexus.exe"
-
-          Name="{commondesktop}\Nexus"
-          Filename="{app}\Nexus.exe"
+          Name: "{group}\Nexus"; Filename: "{app}\Nexus.exe"
+          Name: "{commondesktop}\Nexus"; Filename: "{app}\Nexus.exe"
 
           [Run]
-          Filename="{app}\Nexus.exe"
-          Description="Start Nexus"
-          Flags=nowait postinstall skipifsilent
+          Filename: "{app}\Nexus.exe"; Description: "Start Nexus"; Flags: nowait postinstall skipifsilent
           "@ | Out-File -Encoding utf8 installer\Nexus.iss
 
       - name: Build Windows installer
