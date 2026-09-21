@@ -187,7 +187,7 @@ jobs:
           AppPublisher={#MyAppPublisher}
           DefaultDirName={autopf}\Nexus
           DefaultGroupName=Nexus
-          OutputDir=installer
+          OutputDir=..
           OutputBaseFilename=Nexus-Windows-x64-Setup
           Compression=lzma
           SolidCompression=yes
@@ -224,7 +224,7 @@ jobs:
         with:
           files: |
             Nexus-windows-x64.zip
-            installer/Nexus-Windows-x64-Setup.exe
+            Nexus-Windows-x64-Setup.exe
 
 
   linux:
