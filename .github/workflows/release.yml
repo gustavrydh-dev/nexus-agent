@@ -1,0 +1,213 @@
+name: Build Nexus
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+
+  macos-arm64:
+    name: macOS Apple Silicon
+    runs-on: macos-14
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: aarch64-apple-darwin
+
+      - name: Build
+        run: |
+          cargo build --release --target aarch64-apple-darwin
+
+      - name: Create app
+        run: |
+          mkdir -p Nexus.app/Contents/MacOS
+          mkdir -p Nexus.app/Contents/Resources
+
+          cp target/aarch64-apple-darwin/release/nexus-agent \
+             Nexus.app/Contents/MacOS/Nexus
+
+          chmod +x Nexus.app/Contents/MacOS/Nexus
+
+          cat > Nexus.app/Contents/Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>Nexus</string>
+
+              <key>CFBundleDisplayName</key>
+              <string>Nexus</string>
+
+              <key>CFBundleIdentifier</key>
+              <string>com.nexus.agent</string>
+
+              <key>CFBundleVersion</key>
+              <string>${{ github.ref_name }}</string>
+
+              <key>CFBundleShortVersionString</key>
+              <string>${{ github.ref_name }}</string>
+
+              <key>CFBundleExecutable</key>
+              <string>Nexus</string>
+
+              <key>LSMinimumSystemVersion</key>
+              <string>11.0</string>
+          </dict>
+          </plist>
+          EOF
+
+          zip -r Nexus-macos-arm64.zip Nexus.app
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Nexus-macos-arm64.zip
+
+
+  macos-intel:
+    name: macOS Intel
+    runs-on: macos-13
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin
+
+      - name: Build
+        run: |
+          cargo build --release --target x86_64-apple-darwin
+
+      - name: Create app
+        run: |
+          mkdir -p Nexus.app/Contents/MacOS
+          mkdir -p Nexus.app/Contents/Resources
+
+          cp target/x86_64-apple-darwin/release/nexus-agent \
+             Nexus.app/Contents/MacOS/Nexus
+
+          chmod +x Nexus.app/Contents/MacOS/Nexus
+
+          cat > Nexus.app/Contents/Info.plist <<'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>CFBundleName</key>
+              <string>Nexus</string>
+
+              <key>CFBundleDisplayName</key>
+              <string>Nexus</string>
+
+              <key>CFBundleIdentifier</key>
+              <string>com.nexus.agent</string>
+
+              <key>CFBundleVersion</key>
+              <string>${{ github.ref_name }}</string>
+
+              <key>CFBundleShortVersionString</key>
+              <string>${{ github.ref_name }}</string>
+
+              <key>CFBundleExecutable</key>
+              <string>Nexus</string>
+
+              <key>LSMinimumSystemVersion</key>
+              <string>10.15</string>
+          </dict>
+          </plist>
+          EOF
+
+          zip -r Nexus-macos-intel.zip Nexus.app
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Nexus-macos-intel.zip
+
+
+  windows:
+    name: Windows x64
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-pc-windows-msvc
+
+      - name: Build
+        run: |
+          cargo build --release --target x86_64-pc-windows-msvc
+
+      - name: Prepare package
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist
+          Copy-Item `
+            target/x86_64-pc-windows-msvc/release/nexus-agent.exe `
+            dist/Nexus.exe
+
+      - name: Create archive
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path dist/Nexus.exe `
+            -DestinationPath Nexus-windows-x64.zip
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Nexus-windows-x64.zip
+
+
+  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+
+      - name: Build
+        run: |
+          cargo build --release --target x86_64-unknown-linux-gnu
+
+      - name: Prepare package
+        run: |
+          mkdir -p dist
+          cp target/x86_64-unknown-linux-gnu/release/nexus-agent \
+             dist/Nexus
+
+          chmod +x dist/Nexus
+
+      - name: Create archive
+        run: |
+          tar -czf Nexus-linux-x64.tar.gz -C dist Nexus
+
+      - name: Upload release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: Nexus-linux-x64.tar.gz
