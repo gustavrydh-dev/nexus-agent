@@ -87,8 +87,6 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: Nexus-macos-intel.dmg
-
-
   windows:
     name: Windows x64
     runs-on: windows-latest
