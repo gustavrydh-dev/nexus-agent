@@ -6,7 +6,6 @@ on:
       - "v*"
 
 permissions:
-
   contents: write
 
 env:
@@ -22,59 +21,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nexus-gui/package-lock.json
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: aarch64-apple-darwin
 
-      - name: Build
+      - name: Install dependencies
+        working-directory: nexus-gui
+        run: npm ci
+
+      - name: Build Nexus
+        working-directory: nexus-gui
+        run: npm run tauri build -- --target aarch64-apple-darwin --bundles dmg --ci
+
+      - name: Rename DMG
         run: |
-          cargo build --release --target aarch64-apple-darwin
-
-      - name: Create macOS app
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          mkdir -p Nexus.app/Contents/MacOS
-          mkdir -p Nexus.app/Contents/Resources
-
-          cp target/aarch64-apple-darwin/release/nexus-agent \
-             Nexus.app/Contents/MacOS/Nexus
-
-          chmod +x Nexus.app/Contents/MacOS/Nexus
-
-          cat > Nexus.app/Contents/Info.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleName</key>
-              <string>Nexus</string>
-              <key>CFBundleDisplayName</key>
-              <string>Nexus</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.nexus.agent</string>
-              <key>CFBundleVersion</key>
-              <string>${VERSION}</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${VERSION}</string>
-              <key>CFBundleExecutable</key>
-              <string>Nexus</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>11.0</string>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Create DMG
-        run: |
-          hdiutil create \
-            -volname "Nexus" \
-            -srcfolder Nexus.app \
-            -ov \
-            -format UDZO \
-            Nexus-macos-arm64.dmg
+          cp nexus-gui/src-tauri/target/aarch64-apple-darwin/release/bundle/dmg/*.dmg Nexus-macos-arm64.dmg
 
       - name: Upload release
         uses: softprops/action-gh-release@v2
@@ -90,59 +59,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nexus-gui/package-lock.json
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-apple-darwin
 
-      - name: Build
+      - name: Install dependencies
+        working-directory: nexus-gui
+        run: npm ci
+
+      - name: Build Nexus
+        working-directory: nexus-gui
+        run: npm run tauri build -- --target x86_64-apple-darwin --bundles dmg --ci
+
+      - name: Rename DMG
         run: |
-          cargo build --release --target x86_64-apple-darwin
-
-      - name: Create macOS app
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          mkdir -p Nexus.app/Contents/MacOS
-          mkdir -p Nexus.app/Contents/Resources
-
-          cp target/x86_64-apple-darwin/release/nexus-agent \
-             Nexus.app/Contents/MacOS/Nexus
-
-          chmod +x Nexus.app/Contents/MacOS/Nexus
-
-          cat > Nexus.app/Contents/Info.plist <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
-          "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-          <plist version="1.0">
-          <dict>
-              <key>CFBundleName</key>
-              <string>Nexus</string>
-              <key>CFBundleDisplayName</key>
-              <string>Nexus</string>
-              <key>CFBundleIdentifier</key>
-              <string>com.nexus.agent</string>
-              <key>CFBundleVersion</key>
-              <string>${VERSION}</string>
-              <key>CFBundleShortVersionString</key>
-              <string>${VERSION}</string>
-              <key>CFBundleExecutable</key>
-              <string>Nexus</string>
-              <key>LSMinimumSystemVersion</key>
-              <string>10.15</string>
-          </dict>
-          </plist>
-          EOF
-
-      - name: Create DMG
-        run: |
-          hdiutil create \
-            -volname "Nexus" \
-            -srcfolder Nexus.app \
-            -ov \
-            -format UDZO \
-            Nexus-macos-intel.dmg
+          cp nexus-gui/src-tauri/target/x86_64-apple-darwin/release/bundle/dmg/*.dmg Nexus-macos-intel.dmg
 
       - name: Upload release
         uses: softprops/action-gh-release@v2
@@ -158,77 +97,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nexus-gui/package-lock.json
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-pc-windows-msvc
 
-      - name: Build
-        run: |
-          cargo build --release --target x86_64-pc-windows-msvc
+      - name: Install dependencies
+        working-directory: nexus-gui
+        run: npm ci
 
-      - name: Prepare installer files
+      - name: Build Nexus
+        working-directory: nexus-gui
+        run: npm run tauri build -- --target x86_64-pc-windows-msvc --bundles nsis --ci
+
+      - name: Rename installer
         shell: pwsh
         run: |
-          $version = "${{ github.ref_name }}".TrimStart("v")
-
-          New-Item -ItemType Directory -Force -Path dist
-          New-Item -ItemType Directory -Force -Path installer
-
           Copy-Item `
-            target/x86_64-pc-windows-msvc/release/nexus-agent.exe `
-            dist/Nexus.exe
-
-          @"
-          #define MyAppName "Nexus"
-          #define MyAppVersion "$version"
-          #define MyAppPublisher "Nexus"
-
-          [Setup]
-          AppId={{A5B9E5E2-6B1A-4F9D-B2E2-8A4E1B4D9D10}
-          AppName={#MyAppName}
-          AppVersion={#MyAppVersion}
-          AppPublisher={#MyAppPublisher}
-          DefaultDirName={autopf}\Nexus
-          DefaultGroupName=Nexus
-          OutputDir=..
-          OutputBaseFilename=Nexus-Windows-x64-Setup
-          Compression=lzma
-          SolidCompression=yes
-          ArchitecturesAllowed=x64compatible
-          ArchitecturesInstallIn64BitMode=x64compatible
-          WizardStyle=modern
-
-          [Files]
-          Source: "..\dist\Nexus.exe"; DestDir: "{app}"; Flags: ignoreversion
-
-          [Icons]
-          Name: "{group}\Nexus"; Filename: "{app}\Nexus.exe"
-          Name: "{commondesktop}\Nexus"; Filename: "{app}\Nexus.exe"
-
-          [Run]
-          Filename: "{app}\Nexus.exe"; Description: "Start Nexus"; Flags: nowait postinstall skipifsilent
-          "@ | Out-File -Encoding utf8 installer\Nexus.iss
-
-      - name: Build Windows installer
-        shell: pwsh
-        run: |
-          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" `
-            installer\Nexus.iss
-
-      - name: Create Windows ZIP
-        shell: pwsh
-        run: |
-          Compress-Archive `
-            -Path dist\Nexus.exe `
-            -DestinationPath Nexus-windows-x64.zip
+            nexus-gui/src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe `
+            Nexus-Windows-x64-Setup.exe
 
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Nexus-windows-x64.zip
-            Nexus-Windows-x64-Setup.exe
+          files: Nexus-Windows-x64-Setup.exe
 
 
   linux:
@@ -239,56 +138,31 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: nexus-gui/package-lock.json
+
       - name: Install Rust
         uses: dtolnay/rust-toolchain@stable
         with:
           targets: x86_64-unknown-linux-gnu
 
-      - name: Build
+      - name: Install dependencies
+        working-directory: nexus-gui
+        run: npm ci
+
+      - name: Build Nexus
+        working-directory: nexus-gui
+        run: npm run tauri build -- --target x86_64-unknown-linux-gnu --bundles deb --ci
+
+      - name: Rename DEB
         run: |
-          cargo build --release --target x86_64-unknown-linux-gnu
-
-      - name: Prepare files
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          mkdir -p dist
-          mkdir -p deb/DEBIAN
-          mkdir -p deb/usr/bin
-
-          cp target/x86_64-unknown-linux-gnu/release/nexus-agent \
-             dist/Nexus
-
-          chmod +x dist/Nexus
-
-          cp dist/Nexus deb/usr/bin/nexus
-
-          cat > deb/DEBIAN/control <<EOF
-          Package: nexus
-          Version: ${VERSION}
-          Section: utils
-          Priority: optional
-          Architecture: amd64
-          Maintainer: Nexus
-          Description: Nexus AI terminal agent
-           AI agent capable of operating the user's terminal.
-          EOF
-
-      - name: Create Linux DEB
-        run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-
-          dpkg-deb --build deb \
-            "Nexus-linux-x64-${VERSION}.deb"
-
-      - name: Create Linux TAR
-        run: |
-          tar -czf Nexus-linux-x64.tar.gz \
-            -C dist Nexus
+          cp nexus-gui/src-tauri/target/x86_64-unknown-linux-gnu/release/bundle/deb/*.deb Nexus-linux-x64-1.1.6.deb
 
       - name: Upload release
         uses: softprops/action-gh-release@v2
         with:
-          files: |
-            Nexus-linux-x64-*.deb
-            Nexus-linux-x64.tar.gz
+          files: Nexus-linux-x64-1.1.6.deb
