@@ -6,7 +6,11 @@ on:
       - "v*"
 
 permissions:
+
   contents: write
+
+env:
+  NEXUS_CLIENT_TOKEN: ${{ secrets.NEXUS_CLIENT_TOKEN }}
 
 jobs:
 
