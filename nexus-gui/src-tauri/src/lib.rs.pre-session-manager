@@ -1,0 +1,681 @@
+use portable_pty::{
+    native_pty_system,
+    CommandBuilder,
+    PtySize,
+};
+
+use reqwest::blocking::Client;
+use serde_json::{json, Value};
+
+use std::env;
+use std::io::{self, Read, Write};
+use std::sync::{
+    atomic::{AtomicBool, AtomicU64, Ordering},
+    Arc, Mutex,
+};
+use std::thread;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
+
+use tauri::{Emitter, State};
+
+const MODEL: &str = "gpt-5.6-luna";
+const MAX_AGENT_ROUNDS: usize = 100;
+const MAX_TERMINAL_OUTPUT: usize = 200_000;
+
+static COMMAND_COUNTER: AtomicU64 = AtomicU64::new(1);
+
+struct TerminalState {
+    writer: Mutex<Option<Box<dyn Write + Send>>>,
+    master: Mutex<Option<Box<dyn portable_pty::MasterPty + Send>>>,
+    alive: Arc<AtomicBool>,
+    output: Arc<Mutex<String>>,
+}
+
+impl TerminalState {
+    fn new() -> Self {
+        Self {
+            writer: Mutex::new(None),
+            master: Mutex::new(None),
+            alive: Arc::new(AtomicBool::new(false)),
+            output: Arc::new(Mutex::new(String::new())),
+        }
+    }
+}
+
+fn shell_command() -> CommandBuilder {
+    #[cfg(target_os = "windows")]
+    {
+        let mut cmd = CommandBuilder::new("cmd.exe");
+        cmd.arg("/Q");
+        cmd
+    }
+
+    #[cfg(not(target_os = "windows"))]
+    {
+        #[cfg(target_os = "macos")]
+        let shell = "/bin/zsh";
+
+        #[cfg(target_os = "linux")]
+        let shell = "/bin/bash";
+
+        let mut cmd = CommandBuilder::new(shell);
+        cmd.arg("-i");
+        cmd
+    }
+}
+
+fn start_terminal_internal(
+    state: &TerminalState,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), String> {
+    if state.alive.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let pty_system = native_pty_system();
+
+    let pair = pty_system
+        .openpty(PtySize {
+            rows: 40,
+            cols: 120,
+            pixel_width: 0,
+            pixel_height: 0,
+        })
+        .map_err(|e| format!("Could not open PTY: {e}"))?;
+
+    let child = pair
+        .slave
+        .spawn_command(shell_command())
+        .map_err(|e| format!("Could not start shell: {e}"))?;
+
+    drop(child);
+
+    let writer = pair
+        .master
+        .take_writer()
+        .map_err(|e| format!("Could not create PTY writer: {e}"))?;
+
+    let mut reader = pair
+        .master
+        .try_clone_reader()
+        .map_err(|e| format!("Could not create PTY reader: {e}"))?;
+
+    {
+        let mut writer_slot = state
+            .writer
+            .lock()
+            .map_err(|_| "Writer lock poisoned".to_string())?;
+
+        *writer_slot = Some(writer);
+    }
+
+    {
+        let mut master_slot = state
+            .master
+            .lock()
+            .map_err(|_| "Master lock poisoned".to_string())?;
+
+        *master_slot = Some(pair.master);
+    }
+
+    state.alive.store(true, Ordering::SeqCst);
+
+    let alive = Arc::clone(&state.alive);
+    let output = Arc::clone(&state.output);
+    let app = app_handle.clone();
+
+    thread::spawn(move || {
+        let mut buffer = [0u8; 8192];
+
+        loop {
+            match reader.read(&mut buffer) {
+                Ok(0) => break,
+                Ok(n) => {
+                    let text = String::from_utf8_lossy(&buffer[..n]).to_string();
+
+                    if let Ok(mut stored) = output.lock() {
+                        stored.push_str(&text);
+
+                        if stored.len() > MAX_TERMINAL_OUTPUT {
+                            let keep_from = stored.len() - MAX_TERMINAL_OUTPUT;
+                            *stored = stored[keep_from..].to_string();
+                        }
+                    }
+
+                    let _ = app.emit("terminal-output", text);
+                }
+                Err(_) => break,
+            }
+        }
+
+        alive.store(false, Ordering::SeqCst);
+
+        let _ = app.emit("terminal-exited", ());
+    });
+
+    Ok(())
+}
+
+fn ensure_terminal(
+    state: &TerminalState,
+    app_handle: &tauri::AppHandle,
+) -> Result<(), String> {
+    if state.alive.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    start_terminal_internal(state, app_handle)
+}
+
+fn write_terminal(
+    state: &TerminalState,
+    text: &str,
+) -> Result<(), String> {
+    let mut writer_guard = state
+        .writer
+        .lock()
+        .map_err(|_| "Writer lock poisoned".to_string())?;
+
+    let writer = writer_guard
+        .as_mut()
+        .ok_or_else(|| "Terminal is not running".to_string())?;
+
+    writer
+        .write_all(text.as_bytes())
+        .map_err(|e| format!("PTY write error: {e}"))?;
+
+    writer
+        .flush()
+        .map_err(|e| format!("PTY flush error: {e}"))?;
+
+    Ok(())
+}
+
+fn terminal_snapshot(state: &TerminalState) -> String {
+    state
+        .output
+        .lock()
+        .map(|value| value.clone())
+        .unwrap_or_default()
+}
+
+fn clean_terminal_output(text: &str) -> String {
+    let mut result = String::with_capacity(text.len());
+    let bytes = text.as_bytes();
+
+    let mut i = 0;
+
+    while i < bytes.len() {
+        if bytes[i] == 0x1b {
+            if i + 1 < bytes.len() && bytes[i + 1] == b'[' {
+                i += 2;
+
+                while i < bytes.len() {
+                    let c = bytes[i] as char;
+
+                    if ('@'..='~').contains(&c) {
+                        i += 1;
+                        break;
+                    }
+
+                    i += 1;
+                }
+
+                continue;
+            }
+
+            if i + 1 < bytes.len() && bytes[i + 1] == b']' {
+                i += 2;
+
+                while i < bytes.len() {
+                    if bytes[i] == 0x07 {
+                        i += 1;
+                        break;
+                    }
+
+                    if bytes[i] == 0x1b
+                        && i + 1 < bytes.len()
+                        && bytes[i + 1] == b'\\'
+                    {
+                        i += 2;
+                        break;
+                    }
+
+                    i += 1;
+                }
+
+                continue;
+            }
+
+            i += 1;
+            continue;
+        }
+
+        if bytes[i] == b'\r' {
+            i += 1;
+
+            if i < bytes.len() && bytes[i] == b'\n' {
+                i += 1;
+            }
+
+            result.push('\n');
+            continue;
+        }
+
+        if bytes[i] == 8 {
+            if !result.is_empty() {
+                result.pop();
+            }
+
+            i += 1;
+            continue;
+        }
+
+        result.push(bytes[i] as char);
+        i += 1;
+    }
+
+    result
+}
+
+fn run_terminal_for_ai(
+    state: &TerminalState,
+    app_handle: &tauri::AppHandle,
+    command: &str,
+    input: &str,
+    wait_ms: u64,
+) -> Result<String, String> {
+    ensure_terminal(state, app_handle)?;
+
+    let marker_id = COMMAND_COUNTER.fetch_add(1, Ordering::SeqCst);
+
+    let timestamp = SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .unwrap_or_default()
+        .as_nanos();
+
+    let marker = format!(
+        "__NEXUS_FINISHED_{}_{}_{}__",
+        std::process::id(),
+        marker_id,
+        timestamp
+    );
+
+    let before = terminal_snapshot(state);
+    let before_len = before.len();
+
+    let wrapped_command = format!(
+        "\n{}; printf '\\n{}\\n'\n",
+        command, marker
+    );
+
+    write_terminal(state, &wrapped_command)?;
+
+    if !input.is_empty() {
+        thread::sleep(Duration::from_millis(100));
+        write_terminal(state, input)?;
+    }
+
+    let started = SystemTime::now();
+
+    loop {
+        thread::sleep(Duration::from_millis(50));
+
+        let current = terminal_snapshot(state);
+
+        let new_output = if current.len() >= before_len {
+            current[before_len..].to_string()
+        } else {
+            current.clone()
+        };
+
+        if new_output.contains(&marker) {
+            let cleaned = new_output
+                .replace(&marker, "")
+                .trim()
+                .to_string();
+
+            return Ok(clean_terminal_output(&cleaned));
+        }
+
+        if !state.alive.load(Ordering::SeqCst) {
+            return Ok(
+                "[NEXUS: TERMINAL SESSION ENDED. A NEW SESSION WILL BE AVAILABLE FOR THE NEXT STEP.]"
+                    .to_string(),
+            );
+        }
+
+        let elapsed = started.elapsed().unwrap_or_default();
+
+        if elapsed > Duration::from_millis(wait_ms.max(1000)) {
+            let cleaned = clean_terminal_output(&new_output);
+
+            return Ok(format!(
+                "[NEXUS: COMMAND TIMEOUT]\n{}",
+                cleaned
+            ));
+        }
+
+        if elapsed > Duration::from_secs(600) {
+            return Err("Terminal operation exceeded 10 minutes".to_string());
+        }
+    }
+}
+
+#[tauri::command]
+fn start_terminal(
+    state: State<'_, TerminalState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    ensure_terminal(&state, &app_handle)
+}
+
+#[tauri::command]
+fn terminal_write(
+    state: State<'_, TerminalState>,
+    app_handle: tauri::AppHandle,
+    text: String,
+) -> Result<(), String> {
+    ensure_terminal(&state, &app_handle)?;
+    write_terminal(&state, &text)
+}
+
+#[tauri::command]
+fn terminal_ctrl_c(
+    state: State<'_, TerminalState>,
+    app_handle: tauri::AppHandle,
+) -> Result<(), String> {
+    ensure_terminal(&state, &app_handle)?;
+
+    write_terminal(&state, "\u{3}")
+}
+
+#[tauri::command]
+fn terminal_resize(
+    state: State<'_, TerminalState>,
+    rows: u16,
+    cols: u16,
+) -> Result<(), String> {
+    let master_guard = state
+        .master
+        .lock()
+        .map_err(|_| "Master lock poisoned".to_string())?;
+
+    if let Some(master) = master_guard.as_ref() {
+        master
+            .resize(PtySize {
+                rows,
+                cols,
+                pixel_width: 0,
+                pixel_height: 0,
+            })
+            .map_err(|e| format!("PTY resize error: {e}"))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+fn terminal_status(state: State<'_, TerminalState>) -> bool {
+    state.alive.load(Ordering::SeqCst)
+}
+
+fn call_openai(
+    api_key: &str,
+    input: &Vec<Value>,
+) -> Result<Value, String> {
+    let client = Client::new();
+
+    let body = json!({
+        "model": MODEL,
+        "input": input,
+        "tools": [
+            {
+                "type": "function",
+                "name": "terminal",
+                "description": "Execute arbitrary commands in the user's persistent terminal. Use this to inspect files, create or modify files, run programs, install packages, use git, interact with command line programs, and verify results. The terminal is persistent between calls.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "command": {
+                            "type": "string",
+                            "description": "The shell command to execute."
+                        },
+                        "input": {
+                            "type": "string",
+                            "description": "Optional text to send to an interactive terminal program after starting the command."
+                        },
+                        "wait_ms": {
+                            "type": "integer",
+                            "description": "How long to wait for the command to finish before returning a timeout."
+                        }
+                    },
+                    "required": ["command", "input", "wait_ms"],
+                    "additionalProperties": false
+                }
+            }
+        ]
+    });
+
+    let response = client
+        .post("https://api.openai.com/v1/responses")
+        .bearer_auth(api_key)
+        .json(&body)
+        .send()
+        .map_err(|e| format!("OpenAI request failed: {e}"))?;
+
+    let status = response.status();
+
+    let text = response
+        .text()
+        .map_err(|e| format!("Could not read OpenAI response: {e}"))?;
+
+    if !status.is_success() {
+        return Err(format!(
+            "OpenAI API error {}: {}",
+            status, text
+        ));
+    }
+
+    serde_json::from_str(&text)
+        .map_err(|e| format!("Invalid OpenAI response: {e}"))
+}
+
+fn extract_output_text(response: &Value) -> String {
+    if let Some(text) = response.get("output_text").and_then(Value::as_str) {
+        return text.to_string();
+    }
+
+    let mut result = String::new();
+
+    if let Some(items) = response.get("output").and_then(Value::as_array) {
+        for item in items {
+            if item.get("type").and_then(Value::as_str) == Some("message") {
+                if let Some(content) = item.get("content").and_then(Value::as_array) {
+                    for part in content {
+                        if let Some(text) = part.get("text").and_then(Value::as_str) {
+                            result.push_str(text);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    result
+}
+
+#[tauri::command]
+fn run_nexus_task(
+    state: State<'_, TerminalState>,
+    app_handle: tauri::AppHandle,
+    task: String,
+) -> Result<String, String> {
+    let api_key = env::var("OPENAI_API_KEY")
+        .map_err(|_| "OPENAI_API_KEY is not set.".to_string())?;
+
+    let system_prompt = r#"
+You are NEXUS, an autonomous computer and terminal agent.
+
+Your job is to ACT on the user's computer, not merely explain how to do something.
+
+You have one universal tool called terminal. It gives you access to the user's real persistent terminal session.
+
+You may use any shell command or installed program available on the computer.
+
+There is no artificial command whitelist.
+
+For every task:
+1. Understand the requested result.
+2. Inspect the computer when necessary.
+3. Execute the required commands.
+4. If something fails, diagnose and fix it.
+5. Verify that the requested result actually exists and is correct.
+6. Only then give the user a concise completion message.
+
+Use the terminal as a normal human developer would.
+
+You can:
+- create, read, modify and delete files
+- create folders
+- run Python, Node, Rust and other programs
+- use git
+- install packages when appropriate
+- inspect the filesystem
+- execute pipelines and shell commands
+- interact with programs that request input
+
+For interactive programs, use the terminal input field.
+
+Do not just give commands to the user. Execute them yourself.
+
+Do not claim something was completed unless you verified it.
+
+When a task is complete, briefly state what was done and what was verified.
+"#;
+
+    let mut input: Vec<Value> = vec![
+        json!({
+            "role": "system",
+            "content": system_prompt
+        }),
+        json!({
+            "role": "user",
+            "content": task
+        }),
+    ];
+
+    for _round in 0..MAX_AGENT_ROUNDS {
+        let response = call_openai(&api_key, &input)?;
+
+        let output = response
+            .get("output")
+            .and_then(Value::as_array)
+            .cloned()
+            .unwrap_or_default();
+
+        input.extend(output.clone());
+
+        let mut function_calls = Vec::new();
+
+        for item in &output {
+            if item.get("type").and_then(Value::as_str) == Some("function_call") {
+                function_calls.push(item.clone());
+            }
+        }
+
+        if function_calls.is_empty() {
+            let text = extract_output_text(&response);
+
+            return Ok(if text.trim().is_empty() {
+                "Nexus slutförde uppgiften.".to_string()
+            } else {
+                text
+            });
+        }
+
+        for call in function_calls {
+            let call_id = call
+                .get("call_id")
+                .and_then(Value::as_str)
+                .ok_or_else(|| "Missing function call ID".to_string())?;
+
+            let name = call
+                .get("name")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+
+            if name != "terminal" {
+                input.push(json!({
+                    "type": "function_call_output",
+                    "call_id": call_id,
+                    "output": "Unknown tool"
+                }));
+
+                continue;
+            }
+
+            let arguments_text = call
+                .get("arguments")
+                .and_then(Value::as_str)
+                .unwrap_or("{}");
+
+            let arguments: Value = serde_json::from_str(arguments_text)
+                .map_err(|e| format!("Invalid terminal arguments: {e}"))?;
+
+            let command = arguments
+                .get("command")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+
+            let terminal_input = arguments
+                .get("input")
+                .and_then(Value::as_str)
+                .unwrap_or("");
+
+            let wait_ms = arguments
+                .get("wait_ms")
+                .and_then(Value::as_u64)
+                .unwrap_or(30_000);
+
+            let result = run_terminal_for_ai(
+                &state,
+                &app_handle,
+                command,
+                terminal_input,
+                wait_ms,
+            )?;
+
+            input.push(json!({
+                "type": "function_call_output",
+                "call_id": call_id,
+                "output": result
+            }));
+        }
+    }
+
+    Err("Nexus reached the maximum number of agent steps.".to_string())
+}
+
+#[tauri::command]
+fn greet(name: &str) -> String {
+    format!("Hello, {}! You've been greeted from Rust!", name)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    tauri::Builder::default()
+        .manage(TerminalState::new())
+        .plugin(tauri_plugin_opener::init())
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            start_terminal,
+            terminal_write,
+            terminal_ctrl_c,
+            terminal_resize,
+            terminal_status,
+            run_nexus_task
+        ])
+        .run(tauri::generate_context!())
+        .expect("error while running tauri application");
+}

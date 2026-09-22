@@ -1,0 +1,375 @@
+:root {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", sans-serif;
+  color: #f5f5f7;
+  background: #08090c;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#app {
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  background:
+    radial-gradient(circle at 70% 20%, rgba(105, 85, 255, 0.12), transparent 35%),
+    radial-gradient(circle at 30% 80%, rgba(0, 180, 255, 0.06), transparent 35%),
+    #08090c;
+}
+
+button,
+textarea {
+  font: inherit;
+}
+
+button {
+  border: 0;
+}
+
+.app {
+  display: flex;
+  width: 100%;
+  height: 100%;
+}
+
+.sidebar {
+  width: 250px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  padding: 28px 18px 20px;
+  border-right: 1px solid rgba(255,255,255,.07);
+  background: rgba(12,13,17,.82);
+  backdrop-filter: blur(30px);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 10px 30px;
+}
+
+.brand-mark {
+  width: 38px;
+  height: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 11px;
+  font-size: 18px;
+  font-weight: 800;
+  background: linear-gradient(135deg,#8b5cf6,#4f46e5);
+  box-shadow: 0 8px 30px rgba(99,76,255,.3);
+}
+
+.brand-name {
+  font-size: 14px;
+  font-weight: 800;
+  letter-spacing: .14em;
+}
+
+.brand-subtitle {
+  margin-top: 3px;
+  color: #777985;
+  font-size: 8px;
+  font-weight: 700;
+  letter-spacing: .13em;
+}
+
+.new-task {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 15px;
+  margin-bottom: 18px;
+  border-radius: 11px;
+  color: white;
+  background: linear-gradient(135deg,#7557f5,#5943d8);
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  box-shadow: 0 8px 25px rgba(92,68,220,.2);
+}
+
+.new-task:hover {
+  filter: brightness(1.08);
+}
+
+.new-task span {
+  font-size: 19px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+
+.nav-item {
+  width: 100%;
+  height: 43px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 13px;
+  border-radius: 10px;
+  color: #858791;
+  background: transparent;
+  cursor: pointer;
+  text-align: left;
+  font-size: 13px;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  color: white;
+  background: rgba(255,255,255,.075);
+}
+
+.nav-item span {
+  width: 18px;
+  text-align: center;
+  font-size: 16px;
+}
+
+.sidebar-bottom {
+  margin-top: auto;
+  padding: 15px 10px 5px;
+}
+
+.status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8e909a;
+  font-size: 11px;
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #42d392;
+  box-shadow: 0 0 10px rgba(66,211,146,.65);
+}
+
+.version {
+  margin-top: 10px;
+  color: #4e5059;
+  font-size: 10px;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  height: 90px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 38px;
+  border-bottom: 1px solid rgba(255,255,255,.06);
+}
+
+.eyebrow {
+  margin-bottom: 5px;
+  color: #777985;
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: .18em;
+}
+
+h1 {
+  margin: 0;
+  font-size: 19px;
+  font-weight: 600;
+}
+
+.topbar-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #8c8e98;
+  font-size: 11px;
+}
+
+.workspace {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 60px 30px 40px;
+  overflow: auto;
+}
+
+.hero {
+  width: min(700px,100%);
+  text-align: center;
+}
+
+.hero-orb {
+  width: 86px;
+  height: 86px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 28px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%,#a185ff,#4e3dbe 45%,#1b193a);
+  box-shadow: 0 0 60px rgba(109,84,255,.18);
+}
+
+.orb-core {
+  font-size: 29px;
+  font-weight: 850;
+  color: white;
+}
+
+.hero h2 {
+  margin: 0;
+  font-size: clamp(32px,4vw,48px);
+  line-height: 1.05;
+  letter-spacing: -.045em;
+}
+
+.hero h2 span {
+  color: #777985;
+}
+
+.hero p {
+  max-width: 580px;
+  margin: 20px auto 0;
+  color: #777985;
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+.task-box {
+  width: min(720px,100%);
+  margin-top: 44px;
+  padding: 15px;
+  border: 1px solid rgba(255,255,255,.11);
+  border-radius: 17px;
+  background: rgba(22,23,29,.8);
+  box-shadow: 0 25px 80px rgba(0,0,0,.28);
+  backdrop-filter: blur(25px);
+}
+
+.task-box:focus-within {
+  border-color: rgba(130,103,255,.45);
+}
+
+textarea {
+  width: 100%;
+  min-height: 70px;
+  resize: none;
+  padding: 4px 5px;
+  outline: none;
+  border: 0;
+  color: #f5f5f7;
+  background: transparent;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+textarea::placeholder {
+  color: #5f616b;
+}
+
+.task-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 7px;
+}
+
+.hint {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: #555762;
+  font-size: 10px;
+}
+
+.hint span {
+  padding: 3px 6px;
+  border: 1px solid rgba(255,255,255,.08);
+  border-radius: 5px;
+}
+
+.run-button {
+  height: 37px;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 16px;
+  border-radius: 9px;
+  color: white;
+  background: #6850e8;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.run-button:hover:not(:disabled) {
+  background: #765ff0;
+}
+
+.run-button:disabled {
+  opacity: .7;
+}
+
+.spinner {
+  width: 11px;
+  height: 11px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .7s linear infinite;
+}
+
+.suggestions {
+  width: min(720px,100%);
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 14px;
+}
+
+.suggestions button {
+  padding: 8px 12px;
+  border: 1px solid rgba(255,255,255,.07);
+  border-radius: 8px;
+  color: #777985;
+  background: rgba(255,255,255,.025);
+  cursor: pointer;
+  font-size: 10px;
+}
+
+.suggestions button:hover {
+  color: #bfc0c8;
+  background: rgba(255,255,255,.055);
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
