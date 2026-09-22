@@ -13,6 +13,7 @@ use std::time::{Duration, SystemTime, UNIX_EPOCH};
 use tauri::{Emitter, State};
 
 const MODEL: &str = "gpt-5.6-luna";
+const NEXUS_CLIENT_TOKEN: &str = env!("NEXUS_CLIENT_TOKEN");
 const MAX_AGENT_ROUNDS: usize = 100;
 const MAX_TERMINAL_OUTPUT: usize = 200_000;
 
@@ -714,8 +715,7 @@ fn delete_terminal_session(
     Ok(())
 }
 
-fn call_openai(
-    api_key: &str,
+fn call_nexus_backend(
     input: &Vec<Value>,
 ) -> Result<Value, String> {
     let client = Client::new();
@@ -752,11 +752,11 @@ fn call_openai(
     });
 
     let response = client
-        .post("https://api.openai.com/v1/responses")
-        .bearer_auth(api_key)
+        .post("https://nexus-api.nexus-agent-api.workers.dev/v1/responses")
+        .header("X-Nexus-Client", NEXUS_CLIENT_TOKEN)
         .json(&body)
         .send()
-        .map_err(|e| format!("OpenAI request failed: {e}"))?;
+        .map_err(|e| format!("Nexus backend request failed: {e}"))?;
 
     let status = response.status();
 
@@ -811,9 +811,6 @@ fn run_nexus_task(
     admin_commands: bool,
     dangerous_confirmation: bool,
 ) -> Result<String, String> {
-    let api_key = env::var("OPENAI_API_KEY")
-        .map_err(|_| "OPENAI_API_KEY is not set.".to_string())?;
-
     let session = active_session(&manager, &app)?;
 
     let system_prompt = r#"
@@ -867,7 +864,7 @@ Do not claim completion without verification.
     ];
 
     for _ in 0..MAX_AGENT_ROUNDS {
-        let response = call_openai(&api_key, &input)?;
+        let response = call_nexus_backend(&input)?;
 
         let output = response
             .get("output")

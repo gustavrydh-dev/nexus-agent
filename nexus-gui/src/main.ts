@@ -24,7 +24,6 @@ let currentSessionId = "";
 let currentSessionName = "New task";
 let currentView = "home";
 
-let commandBuffer = "";
 let aiBusy = false;
 
 let sessions: Session[] = [];
@@ -297,19 +296,42 @@ function renderHome() {
 
         <div id="terminal-container"></div>
 
-        <div class="terminal-input-area">
-          <div class="input-mode">
-            ${nexusEnabled ? "NEXUS AI" : "TERMINAL"}
-          </div>
+        ${
+          nexusEnabled
+            ? `
+              <div class="ai-input-wrapper">
+                <div class="ai-input-label">
+                  <span class="ai-input-dot"></span>
+                  NEXUS AI
+                </div>
 
-          <div class="input-hint">
-            ${
-              nexusEnabled
-                ? "Describe what you want Nexus to do..."
-                : "Type a terminal command..."
-            }
-          </div>
-        </div>
+                <textarea
+                  id="nexus-input"
+                  class="nexus-input"
+                  placeholder="Describe what you want Nexus to do..."
+                  rows="3"
+                  autocomplete="off"
+                  spellcheck="false"
+                ></textarea>
+
+                <div class="ai-input-footer">
+                  <span>Press Enter to run · Shift + Enter for new line</span>
+                  <button id="nexus-send" class="nexus-send">
+                    Run task
+                    <span>↵</span>
+                  </button>
+                </div>
+              </div>
+            `
+            : `
+              <div class="terminal-input-area">
+                <div class="input-mode">TERMINAL</div>
+                <div class="input-hint">
+                  Type a terminal command...
+                </div>
+              </div>
+            `
+        }
       </div>
     </div>
   `;
@@ -602,7 +624,6 @@ async function createNewTask() {
     currentSessionId = id;
     currentSessionName = name;
     currentView = "home";
-    commandBuffer = "";
 
     await loadSessions();
 
@@ -792,28 +813,6 @@ async function startTerminal() {
 
   terminal.onData(async (data) => {
     if (nexusEnabled) {
-      commandBuffer += data;
-
-      if (data === "\r") {
-        const task = commandBuffer
-          .replace(/\r/g, "")
-          .replace(/\n/g, "")
-          .trim();
-
-        commandBuffer = "";
-
-        if (task && !aiBusy) {
-          await runNexus(task);
-        }
-
-        return;
-      }
-
-      if (data === "\u007f") {
-        commandBuffer = commandBuffer.slice(0, -1);
-        return;
-      }
-
       return;
     }
 
@@ -920,6 +919,36 @@ async function runNexus(task: string) {
 }
 
 function attachEvents() {
+  const nexusInput =
+    document.querySelector<HTMLTextAreaElement>("#nexus-input");
+
+  const nexusSend =
+    document.querySelector<HTMLButtonElement>("#nexus-send");
+
+  if (nexusInput && nexusSend) {
+    const submitNexusTask = async () => {
+      const task = nexusInput.value.trim();
+
+      if (!task || aiBusy) {
+        return;
+      }
+
+      nexusInput.value = "";
+      await runNexus(task);
+    };
+
+    nexusSend.addEventListener("click", submitNexusTask);
+
+    nexusInput.addEventListener("keydown", async (event) => {
+      if (
+        event.key === "Enter" &&
+        !event.shiftKey
+      ) {
+        event.preventDefault();
+        await submitNexusTask();
+      }
+    });
+  }
   document.querySelectorAll<HTMLButtonElement>("[data-view]").forEach(
     (button) => {
       button.addEventListener("click", async () => {

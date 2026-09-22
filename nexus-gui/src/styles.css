@@ -1735,3 +1735,93 @@ input:focus-visible {
 
   color: #ffffff;
 }
+
+.ai-input-wrapper {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 18px 20px 16px;
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(10, 13, 18, 0.96);
+}
+
+.ai-input-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  color: #aeb7c7;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.ai-input-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #5dff9a;
+  box-shadow: 0 0 10px rgba(93, 255, 154, 0.6);
+}
+
+.nexus-input {
+  display: block;
+  width: 100%;
+  min-height: 82px;
+  box-sizing: border-box;
+  resize: vertical;
+  padding: 15px 16px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 12px;
+  outline: none;
+  background: #0b0f15;
+  color: #f4f7fb;
+  font-family: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.nexus-input::placeholder {
+  color: #687286;
+}
+
+.nexus-input:focus {
+  border-color: rgba(93, 126, 255, 0.7);
+  box-shadow: 0 0 0 3px rgba(93, 126, 255, 0.10);
+}
+
+.ai-input-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 10px;
+  color: #687286;
+  font-size: 11px;
+}
+
+.nexus-send {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: #171c25;
+  color: #eef2f8;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease;
+}
+
+.nexus-send:hover {
+  background: #202734;
+  border-color: rgba(255, 255, 255, 0.2);
+}
+
+.nexus-send span {
+  opacity: 0.55;
+}
+
