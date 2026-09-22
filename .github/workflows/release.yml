@@ -130,7 +130,24 @@ jobs:
           files: Nexus-Windows-x64-Setup.exe
 
 
-  linux:
+    name: Linux x64
+    runs-on: ubuntu-latest
+
+    steps:
+          - name: Install Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            build-essential \
+            curl \
+            wget \
+            file \
+            libxdo-dev \
+            libssl-dev \
+            libayatana-appindicator3-dev \
+            librsvg2-dev \
+            libglib2.0-dev
     name: Linux x64
     runs-on: ubuntu-latest
 
